@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Менеджер задач</title>
+<style>
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 20px auto; padding: 0 16px; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+    .task { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #ddd; }
+    .task.completed strong { text-decoration: line-through; color: #888; }
+    button { cursor: pointer; }
+    #stats { padding: 8px; background: #f4f4f4; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<h1>Менеджер задач</h1>
+
+<div id="stats">Загрузка...</div>
+
+<div class="toolbar">
+    <input id="newTitle" placeholder="Название" />
+    <input id="newDesc"  placeholder="Описание" />
+    <button onclick="addTask()">Добавить</button>
+</div>
+
+<div class="toolbar">
+    <input id="search" placeholder="Поиск..." oninput="searchTasks()" />
+    <select id="status" onchange="loadTasks()">
+        <option value="all">Все</option>
+        <option value="active">Активные</option>
+        <option value="completed">Завершённые</option>
+    </select>
+</div>
+
+<ul id="taskList" style="list-style:none; padding:0;"></ul>
+
+<script>
+async function loadTasks() {
+    const status = document.getElementById('status').value;
+    const res = await fetch(`/api/tasks?status=${status}&per_page=10`);
+    render(await res.json());
+}
+
+async function searchTasks() {
+    const q = document.getElementById('search').value;
+    const res = await fetch(`/api/tasks/search?q=${encodeURIComponent(q)}`);
+    render(await res.json());
+}
+
+function render(tasks) {
+    const list = document.getElementById('taskList');
+    list.innerHTML = '';
+    for (const t of tasks) {
+        const li = document.createElement('li');
+        li.className = 'task' + (t.completed ? ' completed' : '');
+        // BUG 9: XSS — пользовательские данные вставляются без экранирования
+        li.innerHTML = `
+            <div><strong>${t.title}</strong> — ${t.description}</div>
+            <div>
+                <button onclick="toggle(${t.id}, ${t.completed})">${t.completed ? 'Вернуть' : 'Готово'}</button>
+                <button onclick="del(${t.id})">Удалить</button>
+            </div>`;
+        list.appendChild(li);
+    }
+}
+
+async function addTask() {
+    const title = document.getElementById('newTitle').value;
+    const description = document.getElementById('newDesc').value;
+    await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, description})
+    });
+    document.getElementById('newTitle').value = '';
+    document.getElementById('newDesc').value  = '';
+    loadTasks(); loadStats();
+}
+
+async function toggle(id, completed) {
+    await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({completed: completed ? 0 : 1})
+    });
+    loadTasks(); loadStats();
+}
+
+async function del(id) {
+    await fetch(`/api/tasks/${id}`, {method: 'DELETE'});
+    loadTasks(); loadStats();
+}
+
+async function loadStats() {
+    const res = await fetch('/api/stats');
+    const s = await res.json();
+    document.getElementById('stats').textContent =
+        `Всего: ${s.total} | Завершено: ${s.completed} | Активных: ${s.active} | Прогресс: ${s.rate}%`;
+}
+
+loadTasks(); loadStats();
+</script>
+</body>
+</html>
