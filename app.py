@@ -54,9 +54,9 @@ def get_tasks():
     c = conn.cursor()
     query = "SELECT * FROM tasks"
     if status == 'active':
-        query += " WHERE completed = 1"        # BUG 1a
+        query += " WHERE completed = 0"        # BUG 1a
     elif status == 'completed':
-        query += " WHERE completed = 0"        # BUG 1b
+        query += " WHERE completed = 1"        # BUG 1b
 
     offset = (page - 1) * per_page
     query += f" ORDER BY created_at DESC LIMIT {per_page - 1} OFFSET {offset}"  # BUG 2
